@@ -27,7 +27,7 @@ carsDF = pd.read_csv("carsFixed.csv")
 ```{python}
 #| label: fig-productivity-by-boss
 #| fig-cap: "Cars fixed by day (observations 1–250): five panels by shop. Color indicates boss absent (blue) or present (orange); the same marker is used in every panel."
-#| fig-width: 10
+#| fig-width: 9
 #| fig-height: 12
 #| echo: false
 import matplotlib.pyplot as plt
@@ -129,8 +129,8 @@ plt.subplots_adjust(left=0.09, right=0.99, top=0.94, bottom=0.06, hspace=0.22)
 ```{python}
 #| label: fig-summary-shop-boss
 #| fig-cap: "Candlestick chart by shop and boss: wick = min–max; body = mean ± SD (clipped). ▼ / ● / ▲ mark min, mean, and max; labels show those numeric values."
-#| fig-width: 10.5
-#| fig-height: 5
+#| fig-width: 8
+#| fig-height: 4
 #| echo: false
 import matplotlib.pyplot as plt
 import numpy as np
@@ -148,7 +148,7 @@ summary = (
 
 df = summary.reset_index()
 plt.rcParams.update({"font.size": 11, "axes.titlesize": 13, "legend.fontsize": 11, "figure.dpi": 120})
-fig, ax = plt.subplots(figsize=(7.5, 5))
+fig, ax = plt.subplots(figsize=(6, 4))
 
 half_gap = 0.18
 body_w = 0.28
@@ -313,8 +313,8 @@ pred_by_boss
 ```{python}
 #| label: fig-candlestick-predictions
 #| fig-cap: "Candlestick view of OLS predictions: wick = 95% prediction interval for one future day; body = 95% CI for the mean; dot = point prediction. Blue = boss absent, orange = boss present."
-#| fig-width: 10.5
-#| fig-height: 5
+#| fig-width: 8
+#| fig-height: 4
 #| echo: false
 
 import matplotlib.pyplot as plt
@@ -332,7 +332,7 @@ m = smf.ols("carsFixed ~ C(shopID) + boss", data=carsDF).fit()
 plt.rcParams.update(
     {"font.size": 11, "axes.titlesize": 13, "legend.fontsize": 11, "figure.dpi": 120}
 )
-fig, ax = plt.subplots(figsize=(7.5, 5))
+fig, ax = plt.subplots(figsize=(6, 4))
 
 half_gap = 0.18
 body_w = 0.28
