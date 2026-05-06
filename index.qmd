@@ -27,8 +27,8 @@ carsDF = pd.read_csv("carsFixed.csv")
 ```{python}
 #| label: fig-productivity-by-boss
 #| fig-cap: "Cars fixed by day (observations 1–250): five panels by shop. Color indicates boss absent (blue) or present (orange); the same marker is used in every panel."
-#| fig-width: 8
-#| fig-height: 10
+#| fig-width: 6
+#| fig-height: 7.5
 #| echo: false
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -54,7 +54,7 @@ sns.set_style("whitegrid")
 fig, axes = plt.subplots(
     5,
     1,
-    figsize=(7.5, 10),
+    figsize=(6, 7.5),
     sharex=True,
     sharey=True,
 )
