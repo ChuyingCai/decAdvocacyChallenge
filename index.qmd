@@ -1,58 +1,15 @@
 ---
 title: "Decision Advocacy Challenge"
 subtitle: "Data-Driven Scheduling for Maximum Productivity"
+jupyter: python3
 format:
-  html: default
+  html:
+    theme: default
+    css: tight-figures.css
 execute:
   echo: true
   eval: true
 ---
-
-# 🔧 Decision Advocacy Challenge - Patrick's Auto Shop Analysis
-
-## Challenge Overview
-
-**Your Mission:** Create a concise, punchy Quarto document (aim for 1-5 printed pages) that analyzes historical productivity data from Patrick's auto shop network. Your report should give Patrick clear, actionable recommendations he can understand and use. Write it so an auto-mechanic can follow it—no jargon, no confusion, no boredom. Then render the document to HTML and deploy it via GitHub Pages.
-
-**Key Requirements:**
-
-- **Simplicity:** Patrick is an auto-mechanic, not a statistician. Write so he can understand.
-- **Conciseness:** 1-5 printed pages. Get to the point.
-- **Beautiful visualizations:** Show all 250 data points clearly.
-- **Logical recommendations:** Defensible advice based on the data.
-- **Confidence assessment:** Explain uncertainty in plain terms. We only have 250 days of data—that's not a lot. Help Patrick understand what ranges of differences he can expect.
-
-## The Business Problem 🎯
-
-Patrick runs a network of 5 auto repair shops. He's been tracking productivity data (number of cars fixed per day) across all shops, along with whether he (the boss) was present at each shop on each day. 
-
-**The Core Question:** When and where should Patrick schedule his presence to maximize productivity and revenue?
-
-**Key Considerations:**
-
-- Patrick can only be at one shop per day
-- Different shops may respond differently to his presence
-- Revenue depends on number of cars fixed (assume a fixed price per car)
-- Historical patterns may not predict future performance perfectly
-- Patrick loves visiting his brother who runs Shop 3
-
-::: {.callout-important}
-## 🎯 The Key Insight: Data-Driven Decision Making
-
-**The problem:** Patrick needs to make scheduling decisions based on data, not intuition. He needs to understand:
-
-- Which shops benefit most from his presence?
-- Are there patterns by shop that suggest different strategies?
-- What are the revenue and profit implications of different scheduling scenarios?
-- How confident can he be in these recommendations?
-
-**Why this matters:** Poor scheduling decisions can lead to:
-
-- Wasted time (Patrick at shops that don't need him)
-- Lost revenue (shops that need him but don't get him)
-
-**The connection:** This is a real-world decision problem where data analysis can directly impact business outcomes. Your job is to make the data tell a clear, actionable story.
-:::
 
 ## The Data 📊
 
@@ -68,178 +25,423 @@ carsDF = pd.read_csv("carsFixed.csv")
 ```
 
 ```{python}
-#| label: tbl-data-overview
-#| tbl-cap: "Overview of the productivity data"
-#| echo: true
-carsDF.head(10)
+#| label: fig-productivity-by-boss
+#| fig-cap: "Cars fixed by day (observations 1–250): five panels by shop. Color indicates boss absent (blue) or present (orange); the same marker is used in every panel."
+#| fig-width: 10
+#| fig-height: 12
+#| echo: false
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib.lines import Line2D
+
+plt.rcParams.update({
+    "font.size": 11,
+    "axes.titlesize": 13,
+    "axes.labelsize": 12,
+    "xtick.labelsize": 10,
+    "ytick.labelsize": 10,
+    "legend.fontsize": 11,
+    "figure.dpi": 120,
+})
+
+# Colorblind-friendly pair: absent (0) vs present (1)
+COLOR_ABSENT = "#2166ac"
+COLOR_PRESENT = "#d6604d"
+
+MARKER = "o"
+
+sns.set_style("whitegrid")
+fig, axes = plt.subplots(
+    5,
+    1,
+    figsize=(10, 12),
+    sharex=True,
+    sharey=True,
+)
+
+boss_handles = [
+    Line2D(
+        [0],
+        [0],
+        marker="o",
+        linestyle="",
+        color=COLOR_ABSENT,
+        markerfacecolor=COLOR_ABSENT,
+        markeredgecolor="white",
+        markersize=9,
+        label="Boss absent",
+    ),
+    Line2D(
+        [0],
+        [0],
+        marker="o",
+        linestyle="",
+        color=COLOR_PRESENT,
+        markerfacecolor=COLOR_PRESENT,
+        markeredgecolor="white",
+        markersize=9,
+        label="Boss present",
+    ),
+]
+
+for idx, shop in enumerate(range(1, 6)):
+    ax = axes[idx]
+    for boss_val, color in [(0, COLOR_ABSENT), (1, COLOR_PRESENT)]:
+        sub = carsDF[
+            (carsDF["shopID"] == shop) & (carsDF["boss"] == boss_val)
+        ]
+        ax.scatter(
+            sub["observation"],
+            sub["carsFixed"],
+            c=color,
+            marker=MARKER,
+            s=48,
+            alpha=0.88,
+            edgecolors="white",
+            linewidths=0.35,
+            zorder=3,
+        )
+    ax.set_title("Shop {:d}".format(shop), loc="left", fontsize=12, pad=3)
+    ax.set_xlim(0.5, 250.5)
+    ax.grid(True, alpha=0.35)
+
+axes[-1].set_xlabel("Day")
+for ax in axes:
+    ax.set_ylabel("")
+fig.supylabel("Cars fixed", fontsize=12)
+fig.suptitle(
+    "Cars fixed by day — one panel per shop (n = {:d} observations)".format(len(carsDF)),
+    fontsize=13,
+    y=0.995,
+)
+
+axes[0].legend(
+    handles=boss_handles,
+    title="Boss status",
+    frameon=True,
+    loc="upper right",
+)
+
+plt.subplots_adjust(left=0.09, right=0.99, top=0.94, bottom=0.06, hspace=0.22)
 ```
 
-**Data Dictionary:**
-
-- `observation`: Observation number (1-250)
-- `shopID`: Shop identifier (1-5)
-- `boss`: Binary indicator (0 = boss absent, 1 = boss present)
-- `carsFixed`: Number of cars fixed that day
 
 ```{python}
-#| label: tbl-data-summary
-#| tbl-cap: "Summary statistics by shop and boss presence"
-#| echo: true
-summary = carsDF.groupby(['shopID', 'boss'])['carsFixed'].agg(['count', 'mean', 'std', 'min', 'max']).round(2)
-summary
+#| label: fig-summary-shop-boss
+#| fig-cap: "Candlestick chart by shop and boss: wick = min–max; body = mean ± SD (clipped). ▼ / ● / ▲ mark min, mean, and max; labels show those numeric values."
+#| fig-width: 10.5
+#| fig-height: 5
+#| echo: false
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.lines import Line2D
+from matplotlib.patches import Rectangle
+
+COLOR_ABSENT = "#2166ac"
+COLOR_PRESENT = "#d6604d"
+
+summary = (
+    carsDF.groupby(["shopID", "boss"])["carsFixed"]
+    .agg(["count", "mean", "std", "min", "max"])
+    .round(0)
+)
+
+df = summary.reset_index()
+plt.rcParams.update({"font.size": 11, "axes.titlesize": 13, "legend.fontsize": 11, "figure.dpi": 120})
+fig, ax = plt.subplots(figsize=(10.5, 5))
+
+half_gap = 0.18
+body_w = 0.28
+
+for shop in range(1, 6):
+    for bi, (boss, color) in enumerate([(0, COLOR_ABSENT), (1, COLOR_PRESENT)]):
+        row = df[(df["shopID"] == shop) & (df["boss"] == boss)].iloc[0]
+        lo, hi = float(row["min"]), float(row["max"])
+        mean, std = float(row["mean"]), float(row["std"])
+        o = float(np.clip(mean - std, lo, hi))
+        c = float(np.clip(mean + std, lo, hi))
+        x = shop + (bi - 0.5) * 2 * half_gap
+
+        ax.plot(
+            [x, x],
+            [lo, hi],
+            color=color,
+            linewidth=2.2,
+            solid_capstyle="projecting",
+            zorder=2,
+        )
+
+        bottom = min(o, c)
+        top = max(o, c)
+        if top - bottom < 1e-9:
+            ax.plot(
+                [x - body_w / 2, x + body_w / 2],
+                [bottom, bottom],
+                color=color,
+                linewidth=3.5,
+                solid_capstyle="projecting",
+                zorder=3,
+            )
+        else:
+            ax.add_patch(
+                Rectangle(
+                    (x - body_w / 2, bottom),
+                    body_w,
+                    top - bottom,
+                    facecolor=color,
+                    edgecolor=color,
+                    linewidth=1.2,
+                    alpha=0.9,
+                    zorder=3,
+                )
+            )
+
+        mean_v = float(row["mean"])
+        mk = {
+            "markersize": 6,
+            "markeredgewidth": 0.7,
+            "markeredgecolor": "white",
+            "zorder": 5,
+            "clip_on": False,
+        }
+        ax.plot(x, lo, marker="v", color=color, **mk)
+        ax.plot(x, mean_v, marker="o", color=color, **mk)
+        ax.plot(x, hi, marker="^", color=color, **mk)
+
+        # Labels offset from each marker (alternate L/R by candle to reduce overlap)
+        sign = -1 if bi == 0 else 1
+        pad_x = 9 * sign
+        ha_txt = "right" if sign < 0 else "left"
+
+        ax.annotate(
+            "{:g}".format(lo),
+            xy=(x, lo),
+            xytext=(pad_x, -11),
+            textcoords="offset points",
+            ha=ha_txt,
+            va="top",
+            fontsize=7,
+            color="0.2",
+            annotation_clip=False,
+        )
+        ax.annotate(
+            "{:g}".format(mean_v),
+            xy=(x, mean_v),
+            xytext=(pad_x, 0),
+            textcoords="offset points",
+            ha=ha_txt,
+            va="center",
+            fontsize=7,
+            color="0.2",
+            annotation_clip=False,
+        )
+        ax.annotate(
+            "{:g}".format(hi),
+            xy=(x, hi),
+            xytext=(pad_x, 11),
+            textcoords="offset points",
+            ha=ha_txt,
+            va="bottom",
+            fontsize=7,
+            color="0.2",
+            annotation_clip=False,
+        )
+
+ax.set_xlim(0.35, 5.9)
+ax.set_xticks(list(range(1, 6)))
+ax.set_xlabel("Shop")
+ax.set_ylabel("Cars fixed")
+ax.set_title(
+    "Cars fixed by shop and boss"
+)
+ax.grid(True, axis="y", alpha=0.35)
+
+boss_handles = [
+    Line2D([0], [0], color=COLOR_ABSENT, linewidth=4, label="Boss absent"),
+    Line2D([0], [0], color=COLOR_PRESENT, linewidth=4, label="Boss present"),
+]
+ax.legend(handles=boss_handles, title="Boss status", frameon=True)
+plt.tight_layout(pad=0.35, w_pad=0.45, h_pad=0.35)
+plt.subplots_adjust(top=0.93, bottom=0.12)
 ```
 
-## Challenge Requirements 📋
+## Historical Analysis
 
-### Minimum Requirements for Any Points on Challenge
+The first and second plots present the sales performance of five stores over the past 50 days, with a specific focus on the impact of the boss’s presence.  
 
-1. **Create a Quarto Document:** Write a comprehensive quarto markdown file structured as a professional business report. Your final rendered HTML should be a polished, client-ready document that Patrick can use to make decisions. **Important:** Your final rendered HTML should contain only your analysis and recommendations—all challenge instructions, setup guides, and grading rubrics should be removed from the final report.
+The first plot illustrates how frequently the boss visited each store. The distribution is uneven: the boss visited Shop 2 and Shop 4 only 5 days, Shop 1 for 10 days, and Shop 3 and Shop 5 for 15 days each. 
+The second plot compares the average number of cars serviced under two conditions: boss present vs. absent.  
 
-2. **Render to HTML:** You must render the quarto markdown file to HTML.
+Overall, the boss’s presence is associated with increased productivity across all stores, though the magnitude varies:  
+1. Shop 4 shows the most significant increase, from an average of 37 (absent) to 50 (present). However, this result may be slightly inflated by an outlier day exceeding 60 cars serviced.  
+2. Shop 2 also demonstrates a strong improvement. While the maximum remains 35 regardless of presence, the average increases from 22 to 32, and the minimum rises from 11 to 29, indicating more consistent performance when the boss is present. Notably, this result is based on only 5 days of observation.  
+3. Shop 5 experiences a moderate improvement, with the mean rising from 46 to 54, indicating already strong baseline performance with additional gains from leadership presence.  
+4. Shop 1 remains the lowest-performing store, though it improves from 11 to 18, showing that the boss’s presence still has a meaningful relative impact.  
+5. Shop 3, despite having the highest number of visits, shows only a modest increase (32 to 35), suggesting limited marginal impact of supervision.  
 
-3. **GitHub Repository:** Create a repository named `decAdvocacyChallenge` in your GitHub account. Upload your rendered HTML files to this repository.
+```{python}
+#| label: tbl-predictions-boss-shops
+#| tbl-cap: "OLS predictions of mean cars fixed per day, by shop and boss status."
+#| echo: false
+#| output: false
 
-4. **GitHub Pages Setup:** The repository should be made the source of your GitHub Pages:
-   - Go to your repository settings (click the "Settings" tab in your GitHub repository)
-   - Scroll down to the "Pages" section in the left sidebar
-   - Under "Source", select "Deploy from a branch"
-   - Choose "main" branch and "/ (root)" folder
-   - Click "Save"
-   - Your site will be available at: `https://[your-username].github.io/decAdvocacyChallenge/`
-   - **Note:** It may take a few minutes for the site to become available after enabling Pages
-
-## Getting Started: Repository Setup 🚀
-
-::: {.callout-important}
-## 📁 Quick Start
-
-**Step 1:** Create a new repository named `decAdvocacyChallenge` in your GitHub account by forking the starter repository at [https://github.com/flyaflya/decAdvocacyChallenge.git](https://github.com/flyaflya/decAdvocacyChallenge.git)
-
-**Step 2:** Clone the repository locally using Cursor (or VS Code)
-
-**Step 3:** The data file `carsFixed.csv` is already included in this repository. The code will load it from the local file.
-
-**Step 4:** You're ready to start! Modify this `index.qmd` file and begin your analysis.
-:::
-
-::: {.callout-tip}
-## 💡 Why This Approach?
-
-**Benefits:**
-
-- **Real-world application:** You're solving an actual business problem
-- **Data-driven insights:** Learn to extract actionable insights from data
-- **Professional presentation:** Create a report that a real client would use
-- **Visual storytelling:** Master the art of data visualization for decision-making
-:::
-
-## Grading Rubric 🎓
-
-::: {.callout-important}
-## 📊 What You're Really Being Graded On
-
-**This is a report for Patrick, an auto-mechanic, not a statistics professor.** Your job is to give him clear, actionable advice he can understand and use. Think of this as a brief consultation report—something he can read in 5 minutes and immediately know what to do.
-
-**Report Format:**
-
-- **Conciseness:** Aim for 1-5 printed pages. Patrick is busy—get to the point quickly.
-- **Simplicity:** Write so an auto-mechanic can understand. Avoid jargon. Use plain language.
-- **Delete All Challenge Instructions:** Once you've completed your analysis, remove all challenge instructions, setup guides, and grading rubrics from your final rendered HTML. The final report should contain only your analysis, visualizations, and recommendations—nothing else.
-- **Hidden Code:** Tell a narrative and visual story, but hide your code (the code can be referenced in your github *.qmd source file if needed).
-- **Show All Data Points:** When plotting historical data, display all 250 observations (not just summaries). Use transparency, jitter, or other techniques to handle overlapping points.
-
-**What makes a great report:**
-
-- **Beautiful visualizations:** Clean, clear charts that tell the story at a glance
-- **Logical recommendations:** Defensible advice based on the data, not speculation
-- **Confidence assessment:** Explain uncertainty in plain terms. What ranges of differences can Patrick expect? How confident can he be? (Remember: we only have 250 days of data—that's not a lot.)
-- **Punchy and focused:** Don't bore Patrick with unnecessary analysis. Focus on what matters for his decision.
-
-**What we're looking for:** A report Patrick can read, understand, and act on. If he's confused or bored, you've missed the mark.
-:::
-
-### What Your Report Should Include
-
-Your report should answer these questions in a clear, concise way:
-
-1. **What does the data show?**
-
-   - Visualize all 250 data points showing productivity by shop and boss presence
-   - Which shops benefit most from Patrick's presence? Which don't?
-
-2. **What should Patrick do?**
-
-   - Clear, specific recommendations: Which shops should he prioritize? Why?
-   - What's the potential financial impact? (Revenue or profit implications)
-
-3. **How confident can Patrick be?**
-
-   - Explain uncertainty in plain terms an auto-mechanic can understand
-   - What ranges of differences can he expect? (We only have 250 days—that's not a huge sample)
-   - What could go wrong? What assumptions are you making?
-
-4. **What does the future look like?**
-
-   - Show at least one visualization of projected outcomes under different scheduling scenarios
-   - Help Patrick see the potential impact of following your recommendations
-
-**Remember:** Less is more. A focused, punchy report that Patrick can understand and act on is better than a long, complex analysis that confuses him.
-
-## Technical Implementation Preferences 💡
-
-### Setting Up Your Analysis
-
-- Use `pandas` for data manipulation
-- Use `matplotlib` and `seaborn` for visualizations
-- Use `numpy` for numerical calculations if needed
-- Consider using `scipy` for statistical tests if helpful
-
-### Visualization Preferences
-
-- **Professional Styling:** Use consistent colors, clear labels, readable fonts, and informative titles
-- **Show All Points:** When displaying historical data, ensure all 250 observations are visible (use transparency, jitter, or other techniques)
-- **Color Coding:** Use consistent color schemes (e.g., one color for boss present, another for boss absent)
-- **Interactive Elements:** Consider using plotly for interactive visualizations if helpful (optional)
-
-### Data Loading
-
-The data file `carsFixed.csv` is included in your repository. Load it using pandas:
-
-```python
 import pandas as pd
-carsDF = pd.read_csv("carsFixed.csv")
+import statsmodels.formula.api as smf
+
+m = smf.ols("carsFixed ~ C(shopID) + boss", data=carsDF).fit()
+
+pred_rows = []
+for shop in range(1, 6):
+    for boss, label in [(0, "Absent"), (1, "Present")]:
+        X = pd.DataFrame({"shopID": [shop], "boss": [boss]})
+        sf = m.get_prediction(X).summary_frame(alpha=0.05).iloc[0]
+        pred_rows.append(
+            {
+                "Shop": shop,
+                "Boss": label,
+                "Predicted cars / day": int(float(sf["mean"])),
+                "95% CI low": int(float(sf["mean_ci_lower"])),
+                "95% CI high": int(float(sf["mean_ci_upper"])),
+            }
+        )
+
+pred_by_boss = pd.DataFrame(pred_rows)
+pred_by_boss
 ```
 
-## Submission Checklist ✅
 
-**Technical Requirements:**
+```{python}
+#| label: fig-candlestick-predictions
+#| fig-cap: "Candlestick view of OLS predictions: wick = 95% prediction interval for one future day; body = 95% CI for the mean; dot = point prediction. Blue = boss absent, orange = boss present."
+#| fig-width: 10.5
+#| fig-height: 5
+#| echo: false
 
-- [ ] Forked repository `decAdvocacyChallenge` from the starter repository
-- [ ] Cloned repository locally using Cursor (or VS Code)
-- [ ] Quarto document created with clear narrative (use this `index.qmd` as a starting point)
-- [ ] Document rendered to HTML successfully
-- [ ] HTML files uploaded to your repository
-- [ ] GitHub Pages enabled and working
-- [ ] Site accessible at `https://[your-username].github.io/decAdvocacyChallenge/`
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import statsmodels.formula.api as smf
+from matplotlib.lines import Line2D
+from matplotlib.patches import Rectangle
 
-**Report Quality Requirements:**
+COLOR_ABSENT = "#2166ac"
+COLOR_PRESENT = "#d6604d"
 
-- [ ] **Conciseness:** Report is 1-5 printed pages (not a novel)
-- [ ] **Simplicity:** Written so an auto-mechanic can understand (no unnecessary jargon)
-- [ ] **Beautiful visualizations:** Clean, clear charts that tell the story with persuasive titles, meaningful labels, and useful annotations.
-- [ ] **All 250 data points visible:** Historical data shows all observations, not just summaries (on one of the visualizations)
-- [ ] **Logical recommendations:** Defensible advice based on the data
-- [ ] **Confidence assessment:** Uncertainty explained in plain terms Patrick can understand
-- [ ] **Future scenarios:** At least one visualization showing projected outcomes
-- [ ] **Clean final report:** All challenge instructions, setup guides, and grading rubrics removed from final HTML
-- [ ] **Hidden code:** Code is hidden in final report (must be in source .qmd file)
+m = smf.ols("carsFixed ~ C(shopID) + boss", data=carsDF).fit()
 
-### Resources
+plt.rcParams.update(
+    {"font.size": 11, "axes.titlesize": 13, "legend.fontsize": 11, "figure.dpi": 120}
+)
+fig, ax = plt.subplots(figsize=(10.5, 5))
 
-- **Quarto Markdown:** [quarto.org/docs/authoring/markdown-basics.html](https://quarto.org/docs/authoring/markdown-basics.html)
-- **Quarto Documentation:** [quarto.org/docs](https://quarto.org/docs)
-- **Python Data Science Handbook:** [jakevdp.github.io/PythonDataScienceHandbook](https://jakevdp.github.io/PythonDataScienceHandbook)
-- **Pandas Documentation:** [pandas.pydata.org/docs](https://pandas.pydata.org/docs)
-- **Matplotlib Gallery:** [matplotlib.org/stable/gallery](https://matplotlib.org/stable/gallery)
-- **Seaborn Tutorial:** [seaborn.pydata.org/tutorial.html](https://seaborn.pydata.org/tutorial.html)
+half_gap = 0.18
+body_w = 0.28
 
+for shop in range(1, 6):
+    for bi, (boss, color) in enumerate([(0, COLOR_ABSENT), (1, COLOR_PRESENT)]):
+        X = pd.DataFrame({"shopID": [shop], "boss": [boss]})
+        sf = m.get_prediction(X).summary_frame(alpha=0.05).iloc[0]
+        mean_v = int(sf["mean"])
+        lo_m, hi_m = int((sf["mean_ci_lower"])), int((sf["mean_ci_upper"]))
+        lo_o, hi_o = int((sf["obs_ci_lower"])), int((sf["obs_ci_upper"]))
+
+        # Body clipped to wick (should already be inside)
+        lo_m = int(np.clip(lo_m, lo_o, hi_o))
+        hi_m = int(np.clip(hi_m, lo_o, hi_o))
+
+        x = shop + (bi - 0.5) * 2 * half_gap
+
+        ax.plot(
+            [x, x],
+            [lo_o, hi_o],
+            color=color,
+            linewidth=2.2,
+            solid_capstyle="projecting",
+            zorder=2,
+        )
+
+        bottom = min(lo_m, hi_m)
+        top = max(lo_m, hi_m)
+        if top - bottom < 1e-9:
+            ax.plot(
+                [x - body_w / 2, x + body_w / 2],
+                [bottom, bottom],
+                color=color,
+                linewidth=3.5,
+                solid_capstyle="projecting",
+                zorder=3,
+            )
+        else:
+            ax.add_patch(
+                Rectangle(
+                    (x - body_w / 2, bottom),
+                    body_w,
+                    top - bottom,
+                    facecolor=color,
+                    edgecolor=color,
+                    linewidth=1.2,
+                    alpha=0.9,
+                    zorder=3,
+                )
+            )
+
+        ax.plot(
+            x,
+            mean_v,
+            marker="o",
+            color=color,
+            markersize=6,
+            markeredgewidth=0.7,
+            markeredgecolor="white",
+            zorder=5,
+            clip_on=False,
+        )
+
+        sign = -1 if bi == 0 else 1
+        pad_x = 9 * sign
+        ha_txt = "right" if sign < 0 else "left"
+        for yv, voff, va in [
+            (lo_o, -11, "top"),
+            (mean_v, 0, "center"),
+            (hi_o, 11, "bottom"),
+        ]:
+            if yv == mean_v:
+                lab = "{:.2f}".format(mean_v)
+            else:
+                lab = "{:.1f}".format(yv)
+            ax.annotate(
+                lab,
+                xy=(x, yv),
+                xytext=(pad_x, voff),
+                textcoords="offset points",
+                ha=ha_txt,
+                va=va,
+                fontsize=7,
+                color="0.2",
+                annotation_clip=False,
+            )
+
+ax.set_xlim(0.35, 5.9)
+ax.set_xticks(list(range(1, 6)))
+ax.set_xlabel("Shop")
+ax.set_ylabel("Cars fixed / day (predicted)")
+ax.set_title("OLS prediction intervals by shop and boss")
+ax.grid(True, axis="y", alpha=0.35)
+
+boss_handles = [
+    Line2D([0], [0], color=COLOR_ABSENT, linewidth=4, label="Boss absent"),
+    Line2D([0], [0], color=COLOR_PRESENT, linewidth=4, label="Boss present"),
+]
+ax.legend(handles=boss_handles, title="Boss status", frameon=True)
+plt.tight_layout(pad=0.35, w_pad=0.45, h_pad=0.35)
+plt.subplots_adjust(top=0.93, bottom=0.14)
+```
+
+# Predictions
+The prediction plot indicates that the boss’s presence is associated with an average increase of approximately 7 additional cars serviced per day per shop. This confirms a consistent positive managerial effect across locations.
+
+However, the effectiveness of this strategy varies by store, suggesting the need for targeted operational decisions rather than uniform allocation:  
+1.	Shop 1 remains the lowest-performing location. Although performance improves when the boss is present, the overall output is still significantly below other stores. This suggests that managerial presence alone is insufficient. Structural improvements such as staff training are likely to generate greater returns than increasing boss visits.  
+2.	Shop 5, the top-performing store, demonstrates strong baseline productivity and further gains when the boss is present. Allocating more managerial time here could maximize absolute returns, as even small percentage improvements translate into a high number of additional cars serviced.  
+3.	Shops 2 and 4 show high sensitivity to managerial presence, with notable performance increases. However, given limited historical boss visits, these effects should be interpreted cautiously. A balanced allocation strategy, where the boss distributes time more evenly between these two stores, could help stabilize and validate performance improvements.  
+4.	For shop 3, based on historical data, the store performance is already stable, the impact of boss appears or not is weaken.  
